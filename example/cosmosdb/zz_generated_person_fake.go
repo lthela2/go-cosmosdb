@@ -166,6 +166,12 @@ func (c *FakePersonClient) Create(ctx context.Context, partitionkey string, pers
 	return c.apply(ctx, partitionkey, person, options, true)
 }
 
+// ExecuteStoredProcedure executes a stored procedure in the database
+func (c *FakePersonClient) ExecuteStoredProcedure(ctx context.Context, sprocsid string, partitionkey string, parameters []string, response interface{}) (err error) {
+	// no-op for now
+	return
+}
+
 // Replace replaces a Person in the database
 func (c *FakePersonClient) Replace(ctx context.Context, partitionkey string, person *pkg.Person, options *Options) (*pkg.Person, error) {
 	return c.apply(ctx, partitionkey, person, options, false)

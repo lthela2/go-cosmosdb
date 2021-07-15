@@ -164,6 +164,12 @@ func (c *FakeTemplateClient) Create(ctx context.Context, partitionkey string, te
 	return c.apply(ctx, partitionkey, template, options, true)
 }
 
+// ExecuteStoredProcedure executes a stored procedure in the database
+func (c *FakeTemplateClient) ExecuteStoredProcedure(ctx context.Context, sprocsid string, partitionkey string, parameters []string, response interface{}) (err error) {
+	// no-op for now
+	return
+}
+
 // Replace replaces a Template in the database
 func (c *FakeTemplateClient) Replace(ctx context.Context, partitionkey string, template *pkg.Template, options *Options) (*pkg.Template, error) {
 	return c.apply(ctx, partitionkey, template, options, false)
