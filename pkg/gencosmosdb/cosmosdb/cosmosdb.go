@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/textproto"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ugorji/go/codec"
@@ -42,6 +43,15 @@ func IsErrorStatusCode(err error, statusCode int) bool {
 	return false
 }
 
+// IsErrorStatusMessage returns true if err is of type Error and its error message
+// contains errorString
+func IsErrorStatusMessage(err error, errorString string) bool {
+	if err, ok := err.(*Error); ok {
+		return strings.Contains(err.Message, errorString)
+	}
+	return false
+}
+
 // ErrETagRequired is the error returned if the ETag field is not populate on a
 // PUT or DELETE operation
 var ErrETagRequired = fmt.Errorf("ETag is required")
@@ -52,15 +62,26 @@ var ErrNotImplemented = fmt.Errorf("not implemented")
 // RetryOnPreconditionFailed retries a function if it fails due to
 // PreconditionFailed
 func RetryOnPreconditionFailed(f func() error) (err error) {
-	return RetryOnHttpStatus(f, http.StatusPreconditionFailed)
+	return RetryOnHttpStatusOrError(f, http.StatusPreconditionFailed)
 }
 
-// RetryOnHttpStatus retries a function based on Http status code
-func RetryOnHttpStatus(f func() error, statusCode int) (err error) {
+// RetryOnHttpStatus retries a function based on Http status code or if the error message contains any of the errorString
+func RetryOnHttpStatusOrError(f func() error, statusCode int, errorString ...string) (err error) {
 	for i := 0; i < 5; i++ {
 		err = f()
 		if !IsErrorStatusCode(err, statusCode) {
-			return
+			var containsErrorString bool
+			if len(errorString) >= 1 {
+				for _, msg := range errorString {
+					if IsErrorStatusMessage(err, msg) {
+						containsErrorString = true
+						break
+					}
+				}
+			}
+			if !containsErrorString {
+				return
+			}
 		}
 		time.Sleep(time.Duration(100*i) * time.Millisecond)
 	}
