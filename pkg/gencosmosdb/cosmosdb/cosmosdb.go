@@ -43,19 +43,6 @@ func IsErrorStatusCode(err error, statusCode int) bool {
 	return false
 }
 
-// IsErrorStatusMessage returns true if err is of type Error and its error message
-// contains errorString
-func IsErrorStatusMessage(err error, errorString string) bool {
-	if err == nil {
-		return false
-	}
-	if err2, ok := err.(*Error); ok {
-		return strings.Contains(err2.Message, errorString)
-	} else {
-		return strings.Contains(err.Error(), errorString)
-	}
-}
-
 // ErrETagRequired is the error returned if the ETag field is not populate on a
 // PUT or DELETE operation
 var ErrETagRequired = fmt.Errorf("ETag is required")
@@ -77,7 +64,7 @@ func RetryOnHttpStatusOrError(f func() error, statusCode int, errorString ...str
 			var containsErrorString bool
 			if len(errorString) >= 1 {
 				for _, msg := range errorString {
-					if IsErrorStatusMessage(err, msg) {
+					if err != nil && strings.Contains(strings.ToLower(err.Error()), strings.ToLower(msg)) {
 						containsErrorString = true
 						break
 					}
