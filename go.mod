@@ -1,13 +1,13 @@
 module github.com/julienstroheker/go-cosmosdb
 
-go 1.18
+go 1.20
 
 require (
 	github.com/Azure/go-autorest/autorest/adal v0.9.11
 	github.com/onsi/ginkgo/v2 v2.9.0
 	github.com/onsi/gomega v1.27.1
 	github.com/sirupsen/logrus v1.7.0
-	github.com/ugorji/go/codec v1.2.0
+	github.com/ugorji/go/codec v1.2.11
 )
 
 require (
