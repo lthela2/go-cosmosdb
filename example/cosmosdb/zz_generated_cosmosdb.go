@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/textproto"
 	"strconv"
@@ -125,7 +125,7 @@ func (c *databaseClient) _do(ctx context.Context, method, path, resourceType, re
 		if err != nil {
 			return nil, err
 		}
-		req.Body = ioutil.NopCloser(buf)
+		req.Body = io.NopCloser(buf)
 		req.Header.Set("Content-Type", "application/json")
 	}
 
