@@ -11,8 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/go-autorest/autorest/adal"
 )
 
 type Authorizer interface {
@@ -60,12 +59,11 @@ func NewTokenAuthorizer(token string) Authorizer {
 
 // oauthAADAuthorizer is used to generate oauth token will be used to connect to CosmosDB
 type oauthAADAuthorizer struct {
-	token               azcore.TokenCredential
-	cosmosDBInstanceURI string
+	token *adal.ServicePrincipalToken
 }
 
 func (a *oauthAADAuthorizer) Authorize(ctx context.Context, req *http.Request, resourceType, resourceLink string) error {
-	oauthToken, err := getTokenCredential(ctx, a.token, a.cosmosDBInstanceURI)
+	oauthToken, err := getTokenCredential(ctx, a.token)
 	if err != nil {
 		return fmt.Errorf("error authorizing request using OAuth AAD Authorizer: %w", err)
 	}
@@ -77,34 +75,16 @@ func (a *oauthAADAuthorizer) Authorize(ctx context.Context, req *http.Request, r
 	return nil
 }
 
-func NewOauthAADAuthorizer(token azcore.TokenCredential, cosmosDBInstanceURI string) Authorizer {
-	return &oauthAADAuthorizer{
-		token:               token,
-		cosmosDBInstanceURI: cosmosDBInstanceURI,
-	}
+func NewOauthAADAuthorizer(token *adal.ServicePrincipalToken) Authorizer {
+	return &oauthAADAuthorizer{token: token}
 }
 
 // Gets a refreshed token credential to use on authorizer
-func getTokenCredential(ctx context.Context, tokenCred azcore.TokenCredential, cosmosDBInstanceURI string) (string, error) {
-	scopes, err := createScopeFromEndpoint(cosmosDBInstanceURI)
+func getTokenCredential(ctx context.Context, token *adal.ServicePrincipalToken) (string, error) {
+	err := token.EnsureFreshWithContext(ctx)
 	if err != nil {
-		return "", fmt.Errorf("error creating scopes: %w", err)
+		return "", err
 	}
-	token, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: scopes,
-	})
-	fmt.Println(token.Token, "Acquired token")
-	if err != nil {
-		return "", fmt.Errorf("error getting token: %w", err)
-	}
-	return token.Token, nil
-}
-
-func createScopeFromEndpoint(endpoint string) ([]string, error) {
-	u, err := url.Parse(endpoint)
-	if err != nil {
-		return nil, err
-	}
-
-	return []string{fmt.Sprintf("%s://%s/.default", u.Scheme, u.Hostname())}, nil
+	oauthToken := token.OAuthToken()
+	return oauthToken, nil
 }
