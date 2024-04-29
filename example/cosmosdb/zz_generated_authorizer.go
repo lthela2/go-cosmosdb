@@ -15,6 +15,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/go-autorest/autorest/adal"
 )
 
 type Authorizer interface {
@@ -62,32 +63,56 @@ func NewTokenAuthorizer(token string) Authorizer {
 
 // oauthAADAuthorizer is used to generate oauth token will be used to connect to CosmosDB
 type oauthAADAuthorizer struct {
-	token               azcore.TokenCredential
-	cosmosDBInstanceURI string
+	token *adal.ServicePrincipalToken
 }
 
 func (a *oauthAADAuthorizer) Authorize(ctx context.Context, req *http.Request, resourceType, resourceLink string) error {
-	oauthToken, err := getTokenCredential(ctx, a.token, a.cosmosDBInstanceURI)
+	oauthToken, err := getTokenCredential(ctx, a.token)
 	if err != nil {
 		return fmt.Errorf("error authorizing request using OAuth AAD Authorizer: %w", err)
 	}
-	req.Header.Set("Authorization", url.QueryEscape(fmt.Sprintf("type=aad&ver=1.0&sig=%s", oauthToken)))
-
-	date := time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT")
-	req.Header.Set("x-ms-date", date)
+	setAADHeaders(req, oauthToken)
 
 	return nil
 }
 
-func NewOauthAADAuthorizer(token azcore.TokenCredential, cosmosDBInstanceURI string) Authorizer {
-	return &oauthAADAuthorizer{
+func NewOauthAADAuthorizer(token *adal.ServicePrincipalToken) Authorizer {
+	return &oauthAADAuthorizer{token: token}
+}
+
+// Gets a refreshed token credential to use on authorizer
+func getTokenCredential(ctx context.Context, token *adal.ServicePrincipalToken) (string, error) {
+	err := token.EnsureFreshWithContext(ctx)
+	if err != nil {
+		return "", err
+	}
+	oauthToken := token.OAuthToken()
+	return oauthToken, nil
+}
+
+type oauthMsalAADAuthorizer struct {
+	token               azcore.TokenCredential
+	cosmosDBInstanceURI string
+}
+
+func NewOauthMsalAADAuthorizer(token azcore.TokenCredential, cosmosDBInstanceURI string) Authorizer {
+	return &oauthMsalAADAuthorizer{
 		token:               token,
 		cosmosDBInstanceURI: cosmosDBInstanceURI,
 	}
 }
 
-// Gets a refreshed token credential to use on authorizer
-func getTokenCredential(ctx context.Context, tokenCred azcore.TokenCredential, cosmosDBInstanceURI string) (string, error) {
+func (a *oauthMsalAADAuthorizer) Authorize(ctx context.Context, req *http.Request, resourceType, resourceLink string) error {
+	oauthToken, err := getMsalToken(ctx, a.token, a.cosmosDBInstanceURI)
+	if err != nil {
+		return fmt.Errorf("error authorizing request using OAuth AAD Authorizer: %w", err)
+	}
+	setAADHeaders(req, oauthToken)
+
+	return nil
+}
+
+func getMsalToken(ctx context.Context, tokenCred azcore.TokenCredential, cosmosDBInstanceURI string) (string, error) {
 	scopes, err := createScopeFromEndpoint(cosmosDBInstanceURI)
 	if err != nil {
 		return "", fmt.Errorf("error creating scopes: %w", err)
@@ -95,7 +120,7 @@ func getTokenCredential(ctx context.Context, tokenCred azcore.TokenCredential, c
 	token, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: scopes,
 	})
-	fmt.Println(token.Token, "Acquired token")
+
 	if err != nil {
 		return "", fmt.Errorf("error getting token: %w", err)
 	}
@@ -107,6 +132,12 @@ func createScopeFromEndpoint(endpoint string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return []string{fmt.Sprintf("%s://%s/.default", u.Scheme, u.Hostname())}, nil
+}
+
+func setAADHeaders(req *http.Request, oauthToken string) {
+	req.Header.Set("Authorization", url.QueryEscape(fmt.Sprintf("type=aad&ver=1.0&sig=%s", oauthToken)))
+
+	date := time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT")
+	req.Header.Set("x-ms-date", date)
 }
