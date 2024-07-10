@@ -15,7 +15,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/go-autorest/autorest/adal"
 )
 
 type Authorizer interface {
@@ -59,35 +58,6 @@ func (a *tokenAuthorizer) Authorize(ctx context.Context, req *http.Request, reso
 
 func NewTokenAuthorizer(token string) Authorizer {
 	return &tokenAuthorizer{token: token}
-}
-
-// oauthAADAuthorizer is used to generate oauth token will be used to connect to CosmosDB
-type oauthAADAuthorizer struct {
-	token *adal.ServicePrincipalToken
-}
-
-func (a *oauthAADAuthorizer) Authorize(ctx context.Context, req *http.Request, resourceType, resourceLink string) error {
-	oauthToken, err := getTokenCredential(ctx, a.token)
-	if err != nil {
-		return fmt.Errorf("error authorizing request using OAuth AAD Authorizer: %w", err)
-	}
-	setAADHeaders(req, oauthToken)
-
-	return nil
-}
-
-func NewOauthAADAuthorizer(token *adal.ServicePrincipalToken) Authorizer {
-	return &oauthAADAuthorizer{token: token}
-}
-
-// Gets a refreshed token credential to use on authorizer
-func getTokenCredential(ctx context.Context, token *adal.ServicePrincipalToken) (string, error) {
-	err := token.EnsureFreshWithContext(ctx)
-	if err != nil {
-		return "", err
-	}
-	oauthToken := token.OAuthToken()
-	return oauthToken, nil
 }
 
 type oauthMsalAADAuthorizer struct {
